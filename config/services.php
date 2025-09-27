@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'plaid' => [
+        'client_id' => env('PLAID_CLIENT_ID'),
+        'secret' => env('PLAID_SECRET'),
+        'base_url' => env('PLAID_URL', 'https://sandbox.plaid.com'),
+        'environment' => env('PLAID_ENV', 'sandbox'),
+    ],
+
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    ],
+
 ];
