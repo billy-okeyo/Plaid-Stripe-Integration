@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -141,9 +142,17 @@
             color: white;
         }
 
-        .feature-icon.bank { background: linear-gradient(45deg, #4facfe, #00f2fe); }
-        .feature-icon.security { background: linear-gradient(45deg, #43e97b, #38f9d7); }
-        .feature-icon.payments { background: linear-gradient(45deg, #fa709a, #fee140); }
+        .feature-icon.bank {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+        }
+
+        .feature-icon.security {
+            background: linear-gradient(45deg, #43e97b, #38f9d7);
+        }
+
+        .feature-icon.payments {
+            background: linear-gradient(45deg, #fa709a, #fee140);
+        }
 
         .feature-card h3 {
             font-size: 1.3rem;
@@ -177,13 +186,15 @@
             margin-right: auto;
         }
 
-        .status-section h2, .stored-accounts-section h2 {
+        .status-section h2,
+        .stored-accounts-section h2 {
             text-align: center;
             margin-bottom: 20px;
             color: #333;
         }
 
-        #connection-status, #stored-accounts-list {
+        #connection-status,
+        #stored-accounts-list {
             background: #f8f9fa;
             border-radius: 10px;
             padding: 20px;
@@ -263,8 +274,13 @@
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         @media (max-width: 768px) {
@@ -284,7 +300,14 @@
         }
     </style>
 </head>
+
 <body>
+    <button
+        style="position: fixed; top: 20px; right: 20px; background: #fff; border: none; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer;"
+        onclick="window.location.href='{{ route('summary') }}'">
+        View Summary
+    </button>
+
     <div class="container">
         <div class="hero">
             <div class="logo">
@@ -293,14 +316,16 @@
             </div>
 
             <h1>Connect Your Bank Account</h1>
-            <p>Securely link your bank account using Plaid and manage payments through Stripe. Experience seamless financial integration with bank-level security.</p>
+            <p>Securely link your bank account using Plaid and manage payments through Stripe. Experience seamless
+                financial integration with bank-level security.</p>
 
             <button id="link-account" class="cta-button">
                 🏦 Link Bank Account
             </button>
 
             <div style="margin-top: 20px;">
-                <a href="/dashboard" style="display: inline-block; background: linear-gradient(135deg, #2c3e50, #3498db); color: white; text-decoration: none; padding: 12px 24px; border-radius: 25px; font-weight: 600; transition: all 0.2s ease;">
+                <a href="/dashboard"
+                    style="display: inline-block; background: linear-gradient(135deg, #2c3e50, #3498db); color: white; text-decoration: none; padding: 12px 24px; border-radius: 25px; font-weight: 600; transition: all 0.2s ease;">
                     💰 Go to Plaid + Stripe Dashboard
                 </a>
             </div>
@@ -349,7 +374,8 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content')
                         },
                         body: JSON.stringify({
                             user_id: 'demo_user_' + Date.now()
@@ -371,7 +397,8 @@
                         token: linkTokenData.link_token,
                         onSuccess: async (public_token, metadata) => {
                             loading.style.display = 'block';
-                            connectionStatus.innerHTML = '<p>Exchanging token and saving accounts...</p>';
+                            connectionStatus.innerHTML =
+                                '<p>Exchanging token and saving accounts...</p>';
 
                             try {
                                 // Exchange public token and save accounts to database
@@ -379,7 +406,9 @@
                                     method: 'POST',
                                     headers: {
                                         'Content-Type': 'application/json',
-                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                        'X-CSRF-TOKEN': document.querySelector(
+                                            'meta[name="csrf-token"]').getAttribute(
+                                            'content')
                                     },
                                     body: JSON.stringify({
                                         public_token: public_token,
@@ -391,9 +420,12 @@
                                 loading.style.display = 'none';
 
                                 if (exchangeData.access_token && exchangeData.accounts) {
-                                    let accountsHtml = '<div style="color: #27ae60; font-weight: 600; margin-bottom: 20px;"><p>✅ Successfully Connected & Saved!</p></div>';
-                                    accountsHtml += `<div style="text-align: left;"><p><strong>Accounts Saved:</strong> ${exchangeData.accounts_saved}</p>`;
-                                    accountsHtml += '<h3 style="margin-top: 20px;">Connected Accounts:</h3>';
+                                    let accountsHtml =
+                                        '<div style="color: #27ae60; font-weight: 600; margin-bottom: 20px;"><p>✅ Successfully Connected & Saved!</p></div>';
+                                    accountsHtml +=
+                                        `<div style="text-align: left;"><p><strong>Accounts Saved:</strong> ${exchangeData.accounts_saved}</p>`;
+                                    accountsHtml +=
+                                        '<h3 style="margin-top: 20px;">Connected Accounts:</h3>';
 
                                     exchangeData.accounts.forEach(account => {
                                         accountsHtml += `
@@ -483,7 +515,8 @@
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content')
                         }
                     });
 
@@ -553,7 +586,8 @@
                         method: 'DELETE',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content')
                         }
                     });
 
@@ -576,7 +610,9 @@
             linkButton.addEventListener('click', async function() {
                 // Show status section
                 statusSection.style.display = 'block';
-                statusSection.scrollIntoView({ behavior: 'smooth' });
+                statusSection.scrollIntoView({
+                    behavior: 'smooth'
+                });
 
                 // Show loading state
                 loading.style.display = 'block';
@@ -587,7 +623,8 @@
                 loading.style.display = 'none';
 
                 if (initialized && plaidHandler) {
-                    connectionStatus.innerHTML = '<p>Click continue in the Plaid popup to connect your bank account...</p>';
+                    connectionStatus.innerHTML =
+                        '<p>Click continue in the Plaid popup to connect your bank account...</p>';
                     plaidHandler.open();
                 }
             });
@@ -599,4 +636,5 @@
         });
     </script>
 </body>
+
 </html>

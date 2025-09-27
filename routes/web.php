@@ -18,6 +18,9 @@ Route::get('/', function () {
 Route::get('/csrf-token', function () {
     return ['token' => csrf_token()];
 });
+Route::get('/summary', function () {
+	return view('summary');
+})->name('summary');
 
 // Plaid Integration Routes
 Route::post('/plaid/create-link-token', [PlaidController::class, 'createLinkToken'])->name('plaid.create-link-token');
