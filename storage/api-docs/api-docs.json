@@ -1,0 +1,146 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Plaid+Stripe API Documentation",
+        "description": "API Documentation",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/health/services": {
+            "get": {
+                "tags": [
+                    "Service Health Monitor"
+                ],
+                "summary": "Get health status of all services",
+                "description": "Returns health status of all services",
+                "operationId": "getServiceHealth",
+                "responses": {
+                    "200": {
+                        "description": "successful operation"
+                    }
+                }
+            }
+        },
+        "/plaid/stored-accounts": {
+            "get": {
+                "tags": [
+                    "Bank Accounts List"
+                ],
+                "summary": "Get list of connected bank accounts",
+                "description": "Returns list of connected bank accounts",
+                "operationId": "getStoredAccounts",
+                "responses": {
+                    "200": {
+                        "description": "successful operation"
+                    }
+                }
+            }
+        },
+        "/api/plaid/create-ach-transfer": {
+            "post": {
+                "tags": [
+                    "ACH Transfer"
+                ],
+                "summary": "Create real ACH transfer using Plaid Processor + Stripe integration with fallback",
+                "description": "Returns real ACH transfer using Plaid Processor + Stripe integration with fallback",
+                "operationId": "dac46e19cb55bf03a8520da5cde6cb43",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "from_account_id": {
+                                        "type": "integer"
+                                    },
+                                    "to_account_id": {
+                                        "type": "integer"
+                                    },
+                                    "amount": {
+                                        "type": "number"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "successful operation"
+                    }
+                }
+            }
+        },
+        "/stripe/transactions": {
+            "get": {
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Get transaction history",
+                "description": "Returns transaction history",
+                "operationId": "bc6057b710ab8b4adf3e86c7bc25a8f9",
+                "responses": {
+                    "200": {
+                        "description": "successful operation"
+                    }
+                }
+            }
+        },
+        "/api/stripe/check-payment-intent": {
+            "post": {
+                "tags": [
+                    "Stripe Status Check"
+                ],
+                "summary": "Check the status of a Stripe payment intent",
+                "description": "Returns the status of a Stripe payment intent",
+                "operationId": "c7bc9ac74bf862fb37036a5870d16b7d",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "payment_intent_id": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "successful operation"
+                    }
+                }
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Service Health Monitor",
+            "description": "Service Health Monitor"
+        },
+        {
+            "name": "Bank Accounts List",
+            "description": "Bank Accounts List"
+        },
+        {
+            "name": "ACH Transfer",
+            "description": "ACH Transfer"
+        },
+        {
+            "name": "Transactions",
+            "description": "Transactions"
+        },
+        {
+            "name": "Stripe Status Check",
+            "description": "Stripe Status Check"
+        }
+    ]
+}

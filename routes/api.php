@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PlaidController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
@@ -27,3 +28,6 @@ Route::post('/stripe/create-payment-intent', [StripePaymentController::class, 'c
 Route::post('/stripe/process-ach-transfer', [StripePaymentController::class, 'processACHTransfer']);
 Route::post('/stripe/complete-transfer', [StripePaymentController::class, 'completeTransfer']);
 Route::get('/stripe/transactions', [StripePaymentController::class, 'getTransactions']);
+
+Route::post('/stripe/create-payment-intent', [StripePaymentController::class, 'createPaymentIntent'])->name('api.stripe.create-payment-intent');
+Route::post('/plaid/create-ach-transfer', [PlaidController::class, 'createACHTransfer'])->name('api.plaid.create-ach-transfer');

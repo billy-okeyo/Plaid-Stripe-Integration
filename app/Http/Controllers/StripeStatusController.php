@@ -11,6 +11,27 @@ class StripeStatusController extends Controller
     /**
      * Check the status of a Stripe payment intent
      */
+    /**
+     * @OA\Post(
+     *      path="/api/stripe/check-payment-intent",
+     *      tags={"Stripe Status Check"},
+     *      summary="Check the status of a Stripe payment intent",
+     *      description="Returns the status of a Stripe payment intent",
+     *      @OA\RequestBody(
+     *          required=true,
+     *          @OA\JsonContent(
+     *              type="object",
+     *              @OA\Property(property="payment_intent_id", type="string")
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="successful operation"
+     *       )
+     *     )
+     *
+     * Returns the status of a Stripe payment intent
+     */
     public function checkPaymentIntent(Request $request)
     {
         $request->validate([

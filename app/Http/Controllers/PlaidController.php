@@ -380,6 +380,21 @@ class PlaidController extends Controller
     /**
      * Get stored accounts from database
      */
+    /**
+     * @OA\Get(
+     *      path="/plaid/stored-accounts",
+     *      operationId="getStoredAccounts",
+     *      tags={"Bank Accounts List"},
+     *      summary="Get list of connected bank accounts",
+     *      description="Returns list of connected bank accounts",
+     *      @OA\Response(
+     *          response=200,
+     *          description="successful operation"
+     *       )
+     *     )
+     *
+     * Returns list of connected bank accounts
+     */
     public function getStoredAccounts(Request $request): JsonResponse
     {
         try {
@@ -469,6 +484,30 @@ class PlaidController extends Controller
 
     /**
      * Create real ACH transfer using Plaid Processor + Stripe integration with fallback
+     */
+    /**
+     * @OA\Post(
+     *      path="/api/plaid/create-ach-transfer",
+     *      tags={"ACH Transfer"},
+     *      summary="Create real ACH transfer using Plaid Processor + Stripe integration with fallback",
+     *      description="Returns real ACH transfer using Plaid Processor + Stripe integration with fallback",
+     *      @OA\RequestBody(
+     *          required=true,
+     *          @OA\JsonContent(
+     *              type="object",
+     *              @OA\Property(property="from_account_id", type="integer"),
+     *              @OA\Property(property="to_account_id", type="integer"),
+     *              @OA\Property(property="amount", type="number"),
+     *              @OA\Property(property="description", type="string")
+     *          )
+     *      ),
+     *      @OA\Response(
+     *          response=200,
+     *          description="successful operation"
+     *       )  
+     *     )
+     *
+     * Returns real ACH transfer using Plaid Processor + Stripe integration with fallback
      */
     public function createACHTransfer(Request $request): JsonResponse
     {

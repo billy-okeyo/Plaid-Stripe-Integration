@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Stripe\Stripe;
 use Stripe\Account;
+use OpenApi\Attributes as OA;
 
 class HealthMonitorController extends Controller
 {
@@ -20,6 +21,21 @@ class HealthMonitorController extends Controller
 
     /**
      * Check health status of all services
+     */
+    /**
+     * @OA\Get(
+     *      path="/health/services",
+     *      operationId="getServiceHealth",
+     *      tags={"Service Health Monitor"},
+     *      summary="Get health status of all services",
+     *      description="Returns health status of all services",
+     *      @OA\Response(
+     *          response=200,
+     *          description="successful operation"
+     *       )
+     *     )
+     *
+     * Returns health status of all services
      */
     public function getServiceHealth(): JsonResponse
     {
