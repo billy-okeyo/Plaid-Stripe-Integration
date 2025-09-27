@@ -285,6 +285,10 @@
     </style>
 </head>
 <body>
+	<button style="position: fixed; top: 20px; right: 20px; background: #fff; border: none; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer;" onclick="window.location.href='{{ route('summary') }}'">
+		🧱 View Summary
+	</button>
+
     <div class="container">
         <div class="hero">
             <div class="logo">

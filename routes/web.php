@@ -15,6 +15,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/summary', function () {
+	return view('summary');
+})->name('summary');
+
 // Plaid Integration Routes
 Route::post('/plaid/create-link-token', [PlaidController::class, 'createLinkToken'])->name('plaid.create-link-token');
 Route::post('/plaid/token-exchange', [PlaidController::class, 'exchangeToken'])->name('plaid.token-exchange');
