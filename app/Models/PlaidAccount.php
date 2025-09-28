@@ -25,6 +25,10 @@ class PlaidAccount extends Model
         'currency_code',
         'metadata',
         'is_active',
+        'stripe_bank_account_token',
+        'stripe_token_created_at',
+        'stripe_integration_status',
+        'connection_status',
     ];
 
     protected $casts = [
@@ -32,6 +36,7 @@ class PlaidAccount extends Model
         'available_balance' => 'decimal:2',
         'current_balance' => 'decimal:2',
         'is_active' => 'boolean',
+        'stripe_token_created_at' => 'datetime',
     ];
 
     /**
@@ -80,5 +85,49 @@ class PlaidAccount extends Model
     public function user()
     {
         return $this->belongsTo(\App\Models\LendingUser::class, 'user_id');
+    }
+
+    /**
+     * Check if account has a valid Stripe bank account token
+     */
+    public function hasValidStripeToken(): bool
+    {
+        return !empty($this->stripe_bank_account_token) &&
+               $this->stripe_integration_status === 'active';
+    }
+
+    /**
+     * Check if account connection is still valid
+     */
+    public function isConnectionActive(): bool
+    {
+        return $this->connection_status === 'connected' && $this->is_active;
+    }
+
+    /**
+     * Get Stripe integration status with emoji
+     */
+    public function getStripeStatusDisplayAttribute(): string
+    {
+        return match($this->stripe_integration_status) {
+            'active' => '✅ Ready',
+            'pending' => '⏳ Processing',
+            'failed' => '❌ Failed',
+            'error' => '⚠️ Error',
+            default => '❓ Unknown'
+        };
+    }
+
+    /**
+     * Get connection status with emoji
+     */
+    public function getConnectionStatusDisplayAttribute(): string
+    {
+        return match($this->connection_status) {
+            'connected' => '🟢 Connected',
+            'expired' => '🟡 Expired',
+            'error' => '🔴 Error',
+            default => '❓ Unknown'
+        };
     }
 }
