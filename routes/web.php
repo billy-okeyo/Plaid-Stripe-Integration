@@ -22,9 +22,11 @@ Route::post('/plaid/accounts', [PlaidController::class, 'getAccounts'])->name('p
 Route::post('/plaid/user-accounts', [PlaidController::class, 'getUserAccounts'])->name('plaid.user-accounts');
 Route::post('/plaid/balances', [PlaidController::class, 'getBalances'])->name('plaid.balances');
 Route::post('/plaid/create-ach-transfer', [PlaidController::class, 'createACHTransfer'])->name('plaid.create-ach-transfer');
+Route::get('/plaid/check-verification-status/{paymentIntentId}', [PlaidController::class, 'checkVerificationStatus'])->name('plaid.check-verification-status');
 Route::post('/plaid/webhook', [PlaidController::class, 'webhook'])->name('plaid.webhook');
 Route::get('/plaid/stored-accounts', [PlaidController::class, 'getStoredAccounts'])->name('plaid.stored-accounts');
 Route::delete('/plaid/accounts/{accountId}', [PlaidController::class, 'disconnectAccount'])->name('plaid.disconnect-account');
+Route::get('/plaid/configuration-status', [PlaidController::class, 'getConfigurationStatus'])->name('plaid.configuration-status');
 
 // Stripe Payment Routes (Regular Stripe + Plaid ACH)
 Route::post('/stripe/create-payment-intent', [StripePaymentController::class, 'createPaymentIntent'])->name('stripe.create-payment-intent');

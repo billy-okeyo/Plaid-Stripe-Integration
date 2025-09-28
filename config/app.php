@@ -43,6 +43,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Use Production APIs
+    |--------------------------------------------------------------------------
+    |
+    | This value determines whether to use production or sandbox credentials
+    | for third-party services like Plaid and Stripe. Set to true to use
+    | production keys, false to use sandbox/test keys.
+    |
+    */
+
+    'use_production_apis' => (bool) env('USE_PRODUCTION_APIS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
