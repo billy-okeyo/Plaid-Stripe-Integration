@@ -524,6 +524,7 @@
             <button class="tab-button" onclick="openTab(event, 'stripe-status-tab')">🔍 Stripe Status</button>
             <button class="tab-button" onclick="openTab(event, 'health-tab')">🏥 Health Monitor</button>
             <button class="tab-button" onclick="openTab(event, 'settings-tab')">⚙️ Settings</button>
+            <button class="tab-button" onclick="openTab(event, 'config-tab')">🔧 Configuration</button>
         </div>
 
         <!-- Tab Content -->
@@ -612,6 +613,34 @@
                             <div class="form-group">
                                 <label for="amount">Amount ($)</label>
                                 <input type="number" id="amount" name="amount" min="0.01" step="0.01" required placeholder="Enter amount">
+                            </div>
+                            <div class="form-group">
+                                <label for="email">Email for Verification Notifications</label>
+                                <input type="email" id="email" name="email" required placeholder="Enter your email" value="bewiran528@bitmens.com">
+                                <small style="color: #666; font-size: 12px;">Verification links and status updates will be sent to this email</small>
+                            </div>
+                            <div class="form-group" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 1px solid #e1e5f2;">
+                                <label style="font-weight: bold; color: #667eea; margin-bottom: 10px; display: block;">💳 Payment Processing Options</label>
+                                <div style="margin-bottom: 15px;">
+                                    <label for="paymentMethod" style="font-weight: 600; margin-bottom: 5px; display: block;">Payment API Method</label>
+                                    <select id="paymentMethod" name="payment_method" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <option value="payment_intents">PaymentIntents API (Modern, Faster)</option>
+                                        <option value="charges">Charges API (Legacy, Traditional)</option>
+                                    </select>
+                                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                                        PaymentIntents supports instant verification. Charges uses traditional microdeposits.
+                                    </small>
+                                </div>
+                                <div>
+                                    <label for="verificationMethod" style="font-weight: 600; margin-bottom: 5px; display: block;">Verification Method</label>
+                                    <select id="verificationMethod" name="verification_method" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                        <option value="instant">⚡ Instant Verification (Recommended)</option>
+                                        <option value="microdeposit">🏦 Microdeposit Verification (3-5 days)</option>
+                                    </select>
+                                    <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                                        Instant verification works immediately. Microdeposits require waiting for small test deposits.
+                                    </small>
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label for="description">Description</label>
@@ -737,6 +766,60 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Configuration Tab -->
+            <div id="config-tab" class="tab-panel">
+                <div class="dashboard-grid">
+                    <!-- Current Configuration Status -->
+                    <div class="dashboard-card">
+                        <h2 class="card-title">🔧 Current Configuration</h2>
+                        <p style="margin-bottom: 20px; color: #666;">Current API configuration status and credentials being used.</p>
+
+                        <div id="configurationStatus">
+                            <div class="loading">Loading configuration status...</div>
+                        </div>
+
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="loadConfigurationStatus()">🔄 Refresh Status</button>
+                        </div>
+                    </div>
+
+                    <!-- Environment Toggle -->
+                    <div class="dashboard-card">
+                        <h2 class="card-title">🔄 Environment Toggle</h2>
+                        <p style="margin-bottom: 20px; color: #666;">
+                            Switch between production and sandbox/test credentials.
+                            <strong>Note:</strong> This requires updating your .env file and will require an application restart.
+                        </p>
+
+                        <div id="environmentToggle">
+                            <div class="setting-item">
+                                <label>
+                                    <input type="checkbox" id="useProductionApisToggle" onchange="handleProductionToggle(this)">
+                                    <span class="checkmark"></span>
+                                    Use Production APIs
+                                </label>
+                                <div class="setting-description">
+                                    When enabled, uses production Plaid and Stripe credentials. When disabled, uses sandbox/test credentials.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                            <h4 style="color: #17a2b8; margin-bottom: 10px;">🔑 Credential Setup Instructions</h4>
+                            <p style="margin-bottom: 10px; font-size: 14px;">
+                                To use production credentials, update your <code>.env</code> file with:
+                            </p>
+                            <ul style="margin-left: 20px; font-size: 14px;">
+                                <li><code>PLAID_PROD_CLIENT_ID</code> - Your production Plaid client ID</li>
+                                <li><code>PLAID_PROD_SECRET</code> - Your production Plaid secret</li>
+                                <li><code>STRIPE_PROD_SECRET_KEY</code> - Your production Stripe secret key</li>
+                                <li><code>STRIPE_PROD_PUBLISHABLE_KEY</code> - Your production Stripe publishable key</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     <!-- Include Plaid Link SDK -->
     <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
@@ -779,9 +862,8 @@
                 loadServiceControls();
                 loadSystemSettings();
                 loadAllSettings();
-            } else if (tabName === 'settings-tab') {
-                loadServiceControls();
-                loadAllSettings();
+            } else if (tabName === 'config-tab') {
+                loadConfigurationStatus();
             } else if (tabName === 'transfer-tab') {
                 updateTransferDropdowns();
             }
@@ -795,6 +877,130 @@
             }
             console.warn('CSRF token not found');
             return '';
+        }
+
+        // Handle Stripe PaymentIntent next_action property
+        function getNextActionHtml(result) {
+            if (!result.transfer || !result.transfer.next_action) {
+                return '';
+            }
+
+            const nextAction = result.transfer.next_action;
+
+            switch (nextAction.type) {
+                case 'verify_with_microdeposits':
+                    return getMicrodepositVerificationHtml(nextAction.verify_with_microdeposits, result.transfer.id);
+
+                case 'use_stripe_sdk':
+                    return getStripeSdkHtml(nextAction.use_stripe_sdk, result.transfer.id);
+
+                default:
+                    return `
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-top: 15px;">
+                            <h4>⚠️ Additional Action Required</h4>
+                            <p><strong>Type:</strong> ${nextAction.type}</p>
+                            <p>Please check with your banking institution or contact support for assistance.</p>
+                            <p><strong>Payment Intent ID:</strong> ${result.transfer.id}</p>
+                        </div>
+                    `;
+            }
+        }
+
+        // Handle microdeposit verification
+        function getMicrodepositVerificationHtml(microdepositData, paymentIntentId) {
+            const arrivalDate = new Date(microdepositData.arrival_date * 1000);
+            const formattedDate = arrivalDate.toLocaleDateString();
+
+            return `
+                <div style="background: #d4edda; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745; margin-top: 15px;">
+                    <h4>💳 Bank Verification Required</h4>
+                    <p><strong>Verification Method:</strong> ${microdepositData.microdeposit_type === 'descriptor_code' ? 'Statement Descriptor' : 'Microdeposits'}</p>
+                    <p><strong>Expected Completion:</strong> ${formattedDate}</p>
+
+                    ${microdepositData.microdeposit_type === 'descriptor_code' ?
+                        `<p>📋 Check your bank statement for a descriptor code from Stripe, then verify using the link below.</p>` :
+                        `<p>💰 Small test deposits will appear in your account. You'll need to verify the amounts.</p>`
+                    }
+
+                    ${microdepositData.hosted_verification_url ?
+                        `<div style="margin-top: 15px;">
+                            <a href="${microdepositData.hosted_verification_url}"
+                               target="_blank"
+                               style="background: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                                🔗 Complete Verification
+                            </a>
+                            <p style="font-size: 12px; color: #666; margin-top: 8px;">Opens in new window</p>
+                        </div>` : ''
+                    }
+
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #c3e6cb;">
+                        <button onclick="checkVerificationStatus('${paymentIntentId}')"
+                                style="background: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+                            🔄 Check Status
+                        </button>
+                        <button onclick="loadTransactions()"
+                                style="background: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">
+                            📋 Refresh Transactions
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Handle Stripe SDK actions
+        function getStripeSdkHtml(sdkData, paymentIntentId) {
+            return `
+                <div style="background: #cce5ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff; margin-top: 15px;">
+                    <h4>🔐 Additional Authentication Required</h4>
+                    <p>Your bank requires additional authentication to complete this transfer.</p>
+                    <div style="margin-top: 15px;">
+                        <button onclick="handleStripeAuthentication('${paymentIntentId}')"
+                                style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                            🔒 Complete Authentication
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Check verification status
+        async function checkVerificationStatus(paymentIntentId) {
+            try {
+                const response = await fetch(`/plaid/check-verification-status/${paymentIntentId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': getCSRFToken()
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const statusDiv = document.getElementById('transferStatus');
+                    statusDiv.innerHTML = `
+                        <div style="color: green;">
+                            <h4>✅ Verification Status Updated</h4>
+                            <p><strong>Current Status:</strong> ${result.status}</p>
+                            ${result.status === 'succeeded' ?
+                                '<p>🎉 Your transfer has been completed!</p>' :
+                                '<p>⏳ Verification is still pending. Please check back later.</p>'
+                            }
+                        </div>
+                    `;
+                    loadTransactions();
+                } else {
+                    alert('Unable to check verification status. Please try again later.');
+                }
+            } catch (error) {
+                console.error('Error checking verification status:', error);
+                alert('Error checking verification status. Please try again later.');
+            }
+        }
+
+        // Handle Stripe authentication (placeholder for future implementation)
+        async function handleStripeAuthentication(paymentIntentId) {
+            alert(`Authentication handling for ${paymentIntentId} will be implemented with Stripe Elements SDK`);
         }
 
         // Create User Form Handler
@@ -941,6 +1147,9 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    // Handle next action if required
+                    const nextActionHtml = getNextActionHtml(result);
+
                     statusDiv.innerHTML = `
                         <div style="color: green;">
                             <h4>✅ Real ACH Transfer Initiated!</h4>
@@ -950,7 +1159,7 @@
                             <p><strong>Network:</strong> ACH via Plaid + Stripe</p>
                             <p><strong>Estimated Completion:</strong> ${result.estimated_completion}</p>
                             <p><em>Real money movement initiated via secure bank account token. Updates will be provided via webhooks.</em></p>
-                            ${result.next_action ? '<p><strong>Next Action Required:</strong> Additional verification may be needed</p>' : ''}
+                            ${nextActionHtml}
                         </div>
                     `;
 
@@ -960,13 +1169,42 @@
                     e.target.reset();
                 } else {
                     let errorMessage = result.error || result.message || 'ACH transfer failed';
-                    statusDiv.innerHTML = `
-                        <div style="color: red;">
-                            <h4>❌ Real ACH Transfer Failed</h4>
-                            <p>${errorMessage}</p>
-                            ${result.decline_code ? `<p><strong>Decline Code:</strong> ${result.decline_code}</p>` : ''}
-                        </div>
-                    `;
+
+                    // Check if this is a relink error
+                    if (result.requires_relink) {
+                        statusDiv.innerHTML = `
+                            <div style="color: #856404; background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                                <h4>⚠️ Account Connection Expired</h4>
+                                <p><strong>Institution:</strong> ${result.institution_name || 'Bank'}</p>
+                                <p><strong>Account:</strong> ${result.account_name || 'Account'}</p>
+                                <p>${errorMessage}</p>
+                                <div style="margin-top: 15px;">
+                                    <button
+                                        class="btn"
+                                        onclick="relinkBankAccount('${result.account_id}', getUserIdForAccount('${result.account_id}'))"
+                                        style="background: #ffc107; color: #212529; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;"
+                                    >
+                                        🔄 Reconnect This Account
+                                    </button>
+                                    <button
+                                        class="btn"
+                                        onclick="loadLinkedAccounts()"
+                                        style="background: #6c757d; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;"
+                                    >
+                                        📋 View All Accounts
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        statusDiv.innerHTML = `
+                            <div style="color: red;">
+                                <h4>❌ Real ACH Transfer Failed</h4>
+                                <p>${errorMessage}</p>
+                                ${result.decline_code ? `<p><strong>Decline Code:</strong> ${result.decline_code}</p>` : ''}
+                            </div>
+                        `;
+                    }
                     console.error('Real ACH transfer error details:', result);
                 }
             } catch (error) {
@@ -1279,24 +1517,67 @@
                     console.log('✅ Found', result.accounts.length, 'accounts');
                     let html = '<h4>All Linked Bank Accounts:</h4>';
                     result.accounts.forEach(account => {
+                        const requiresRelink = account.requires_relink || account.status === 'requires_relink';
+                        const statusColor = requiresRelink ? '#dc3545' : '#28a745';
+                        const statusText = requiresRelink ? '⚠️ Needs Relinking' : '✅ Connected';
+                        const statusBg = requiresRelink ? '#f8d7da' : '#d4edda';
+
                         html += `
-                            <div class="user-item" style="margin: 10px 0;">
-                                <h4>🏦 ${account.institution_name}</h4>
-                                <p><strong>Account:</strong> ${account.account_name}</p>
-                                <p><strong>Type:</strong> ${account.account_type}</p>
-                                <p><strong>User ID:</strong> ${account.user_id}</p>
-                                <p><strong>Available Balance:</strong> ${account.formatted_available_balance || 'N/A'}</p>
-                                <p><strong>Current Balance:</strong> ${account.formatted_current_balance || 'N/A'}</p>
+                            <div class="user-item" style="margin: 10px 0; border-left-color: ${statusColor};">
+                                <div style="display: flex; justify-content: between; align-items: flex-start;">
+                                    <div style="flex: 1;">
+                                        <h4>🏦 ${account.institution_name}</h4>
+                                        <p><strong>Account:</strong> ${account.account_name}</p>
+                                        <p><strong>Type:</strong> ${account.account_type}</p>
+                                        <p><strong>User ID:</strong> ${account.user_id}</p>
+                                        <p><strong>Status:</strong> <span class="status-badge" style="background: ${statusBg}; color: ${statusColor};">${statusText}</span></p>
+                                        <p><strong>Stripe Integration:</strong> <span class="status-badge" style="background: ${account.has_stripe_token ? '#d4edda' : '#fff3cd'}; color: ${account.has_stripe_token ? '#155724' : '#856404'};">${account.stripe_status_display}</span></p>
+                                        ${account.stripe_token_created_at ? `<p style="font-size: 0.85rem; color: #666;"><strong>Token Created:</strong> ${account.stripe_token_created_at}</p>` : ''}
+                                        ${requiresRelink ?
+                                            `<p style="color: ${statusColor}; margin-top: 10px;"><strong>Issue:</strong> ${account.error_message || 'Connection expired - please reconnect this account'}</p>` :
+                                            `<div>
+                                                <p><strong>Available Balance:</strong> ${account.formatted_available_balance || 'N/A'}</p>
+                                                <p><strong>Current Balance:</strong> ${account.formatted_current_balance || 'N/A'}</p>
+                                            </div>`
+                                        }
+                                        ${account.has_stripe_token ?
+                                            '<div style="background: #d4edda; padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #28a745;"><p style="margin: 0; font-size: 0.9rem; color: #155724;">✅ <strong>Ready for ACH Transfers:</strong> This account has a valid Stripe bank account token and can be used for money transfers.</p></div>' :
+                                            '<div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #ffc107;"><p style="margin: 0; font-size: 0.9rem; color: #856404;">⚠️ <strong>Stripe Token Needed:</strong> This account needs a Stripe bank account token to process transfers. Try reconnecting the account.</p></div>'
+                                        }
+                                    </div>
+                                </div>
                                 <div style="margin-top: 15px;">
-                                    <button
-                                        onclick="disconnectBankAccount('${account.id}')"
-                                        class="btn btn-danger btn-sm"
-                                        style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease;"
-                                        onmouseover="this.style.background='#c82333'"
-                                        onmouseout="this.style.background='#dc3545'"
-                                    >
-                                        🗑️ Disconnect Account
-                                    </button>
+                                    ${requiresRelink ?
+                                        `<div style="display: flex; gap: 10px;">
+                                            <button
+                                                onclick="relinkBankAccount('${account.id}', '${account.user_id}')"
+                                                class="btn btn-warning btn-sm"
+                                                style="background: #ffc107; color: #212529; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease;"
+                                                onmouseover="this.style.background='#e0a800'"
+                                                onmouseout="this.style.background='#ffc107'"
+                                            >
+                                                🔄 Reconnect Account
+                                            </button>
+                                            <button
+                                                onclick="disconnectBankAccount('${account.id}')"
+                                                class="btn btn-danger btn-sm"
+                                                style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease;"
+                                                onmouseover="this.style.background='#c82333'"
+                                                onmouseout="this.style.background='#dc3545'"
+                                            >
+                                                🗑️ Remove Account
+                                            </button>
+                                        </div>` :
+                                        `<button
+                                            onclick="disconnectBankAccount('${account.id}')"
+                                            class="btn btn-danger btn-sm"
+                                            style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; transition: all 0.3s ease;"
+                                            onmouseover="this.style.background='#c82333'"
+                                            onmouseout="this.style.background='#dc3545'"
+                                        >
+                                            🗑️ Disconnect Account
+                                        </button>`
+                                    }
                                 </div>
                             </div>
                         `;
@@ -1393,6 +1674,67 @@
                 console.error('❌ Error disconnecting account:', error);
                 alert('Error disconnecting account: ' + error.message);
             }
+        }
+
+        // Relink bank account function
+        async function relinkBankAccount(accountId, userId) {
+            if (!confirm('This will disconnect the expired account and start the process to reconnect it. Continue?')) {
+                return;
+            }
+
+            try {
+                console.log('🔄 Relinking account:', accountId, 'for user:', userId);
+
+                // First disconnect the old account
+                const disconnectResponse = await fetch(`/plaid/accounts/${accountId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const disconnectResult = await disconnectResponse.json();
+
+                if (disconnectResult.success) {
+                    // Set the selected user for linking
+                    const user = allUsers.find(u => u.id == userId);
+                    if (user) {
+                        selectedUserId = parseInt(userId);
+                        alert(`Old connection removed. Now linking new account for ${user.business_name}...`);
+
+                        // Initialize and open Plaid Link
+                        await initializePlaidLink();
+                        if (plaidLinkHandler) {
+                            plaidLinkHandler.open();
+                        }
+                    } else {
+                        alert('User not found. Please refresh the page and try again.');
+                    }
+                } else {
+                    alert('Failed to disconnect old account: ' + (disconnectResult.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('❌ Error relinking account:', error);
+                alert('Error relinking account: ' + error.message);
+            }
+        }
+
+        // Helper function to get user ID for a given account ID
+        function getUserIdForAccount(accountId) {
+            // This would need to be populated when accounts are loaded
+            // For now, we'll need to get it from the transfer dropdowns or stored data
+            const fromSelect = document.getElementById('fromAccount');
+            const toSelect = document.getElementById('toAccount');
+
+            for (let option of [...fromSelect.options, ...toSelect.options]) {
+                if (option.value === accountId) {
+                    return option.getAttribute('data-user-id');
+                }
+            }
+
+            // Fallback - ask user to select
+            return promptUserSelection()?.id;
         }
 
         // ========== HEALTH MONITORING FUNCTIONS ==========
@@ -2155,11 +2497,159 @@
             }
         }
 
+        // ========== CONFIGURATION FUNCTIONS ==========
+
+        // Load current configuration status
+        async function loadConfigurationStatus() {
+            try {
+                const response = await fetch('/plaid/configuration-status');
+                const result = await response.json();
+
+                if (result.success) {
+                    let html = `
+                        <div class="info-box">
+                            <h3>🌍 Environment: ${result.use_production_apis ? 'Production' : 'Sandbox/Test'}</h3>
+                            <p style="margin-bottom: 15px;">${result.message}</p>
+
+                            <div style="margin-bottom: 20px;">
+                                <h4>🔗 Plaid Configuration</h4>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><strong>Environment:</strong> ${result.plaid.environment}</li>
+                                    <li><strong>Client ID:</strong> ${result.plaid.client_id}</li>
+                                    <li><strong>Base URL:</strong> ${result.plaid.base_url}</li>
+                                </ul>
+                            </div>
+
+                            <div>
+                                <h4>💳 Stripe Configuration</h4>
+                                <ul style="margin-left: 20px; margin-top: 10px;">
+                                    <li><strong>Environment:</strong> ${result.stripe.environment}</li>
+                                    <li><strong>Secret Key:</strong> ${result.stripe.secret_key}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('configurationStatus').innerHTML = html;
+
+                    // Update the toggle checkbox
+                    document.getElementById('useProductionApisToggle').checked = result.use_production_apis;
+
+                } else {
+                    throw new Error(result.error || 'Failed to load configuration status');
+                }
+
+            } catch (error) {
+                console.error('Error loading configuration status:', error);
+                document.getElementById('configurationStatus').innerHTML =
+                    '<div class="info-box" style="border-left-color: #dc3545;"><p style="color: #dc3545;">Error loading configuration status</p></div>';
+            }
+        }
+
+        // Handle production toggle change
+        function handleProductionToggle(checkbox) {
+            if (checkbox.checked) {
+                if (confirm('Switch to PRODUCTION environment? This will use live credentials and real money. Make sure you have set up your production credentials in the .env file.')) {
+                    showProductionWarning();
+                } else {
+                    checkbox.checked = false;
+                }
+            } else {
+                if (confirm('Switch to SANDBOX environment? This will use test credentials and mock data.')) {
+                    showSandboxInfo();
+                } else {
+                    checkbox.checked = true;
+                }
+            }
+        }
+
+        // Show production environment warning
+        function showProductionWarning() {
+            alert(`
+⚠️ PRODUCTION MODE ACTIVATED
+
+To complete the switch to production:
+1. Update your .env file with production credentials
+2. Set USE_PRODUCTION_APIS=true in .env
+3. Restart your application
+
+Current status: Configuration shows intent to use production, but you must manually update .env and restart.
+
+Production credentials needed:
+- PLAID_PROD_CLIENT_ID
+- PLAID_PROD_SECRET
+- STRIPE_PROD_SECRET_KEY
+- STRIPE_PROD_PUBLISHABLE_KEY
+            `);
+        }
+
+        // Show sandbox environment info
+        function showSandboxInfo() {
+            alert(`
+✅ SANDBOX MODE ACTIVATED
+
+To complete the switch to sandbox:
+1. Set USE_PRODUCTION_APIS=false in your .env file (or remove it entirely)
+2. Restart your application
+
+Current status: Configuration shows intent to use sandbox, but you must manually update .env and restart.
+
+This will use your existing sandbox credentials:
+- PLAID_CLIENT_ID (sandbox)
+- PLAID_SECRET (sandbox)
+- STRIPE_SECRET_KEY (test)
+- STRIPE_PUBLISHABLE_KEY (test)
+            `);
+        }
+
+        // Handle payment method selection interactions
+        function handlePaymentMethodSelection() {
+            const paymentMethodSelect = document.getElementById('paymentMethod');
+            const verificationMethodSelect = document.getElementById('verificationMethod');
+
+            if (!paymentMethodSelect || !verificationMethodSelect) {
+                return;
+            }
+
+            paymentMethodSelect.addEventListener('change', function() {
+                const selectedMethod = this.value;
+
+                if (selectedMethod === 'payment_intents') {
+                    // PaymentIntents API - show verification method options
+                    verificationMethodSelect.innerHTML = `
+                        <option value="instant">⚡ Instant Verification (Recommended)</option>
+                        <option value="microdeposit">🏦 Microdeposit Verification (3-5 days)</option>
+                    `;
+                    verificationMethodSelect.value = 'instant'; // Default to instant
+
+                } else if (selectedMethod === 'charges') {
+                    // Charges API - only micro-deposit verification
+                    verificationMethodSelect.innerHTML = `
+                        <option value="microdeposit">🏦 Microdeposit Verification (Only option for Charges API)</option>
+                    `;
+                    verificationMethodSelect.value = 'microdeposit';
+
+                } else {
+                    // Reset to default options
+                    verificationMethodSelect.innerHTML = `
+                        <option value="instant">⚡ Instant Verification (Recommended)</option>
+                        <option value="microdeposit">🏦 Microdeposit Verification (3-5 days)</option>
+                    `;
+                }
+            });
+
+            // Trigger initial setup
+            if (paymentMethodSelect.value) {
+                paymentMethodSelect.dispatchEvent(new Event('change'));
+            }
+        }
+
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
             loadUsers();
             loadTransactions();
             loadLinkedAccounts();
+            handlePaymentMethodSelection();
 
             // Link account button handler
             document.getElementById('linkAccountButton').addEventListener('click', async () => {
