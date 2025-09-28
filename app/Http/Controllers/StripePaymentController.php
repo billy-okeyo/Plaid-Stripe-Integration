@@ -183,6 +183,20 @@ class StripePaymentController extends Controller
     /**
      * Get transaction history
      */
+    /**
+     * @OA\Get(
+     *      path="/stripe/transactions",
+     *      tags={"Transactions"},
+     *      summary="Get transaction history",
+     *      description="Returns transaction history",
+     *      @OA\Response(
+     *          response=200,
+     *          description="successful operation"
+     *       )
+     *     )
+     *
+     * Returns transaction history
+     */
     public function getTransactions(Request $request)
     {
         try {
