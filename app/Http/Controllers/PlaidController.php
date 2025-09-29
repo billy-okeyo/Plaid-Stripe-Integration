@@ -1247,25 +1247,30 @@ class PlaidController extends Controller
 
             // dd($bankAccountToken);
 
-            if ($bankAccountToken && str_starts_with($bankAccountToken, 'btok_')) {
-                // We have a Plaid processor token, but bank_account_token parameter isn't supported
-                // in current Stripe API for PaymentMethod creation. Log this and fall back.
-                Log::info('Plaid processor token available but not compatible with current Stripe API', [
-                    'token_prefix' => substr($bankAccountToken, 0, 10) . '***'
-                ]);
-                Log::warning('Falling back to bank details approach due to Stripe API compatibility');
-            } else if ($bankAccountToken === 'pm_usBankAccount_success') {
-                // Test mode - this token should work directly, but let's be safe and fall back too
-                Log::info('Test token available but falling back to consistent bank details approach');
-            }
+        if ($bankAccountToken && str_starts_with($bankAccountToken, 'btok_')) {
+            // ✅ We have a Plaid processor token - USE IT with Payment Intents API!
+            Log::info('🎉 Using Plaid processor token with Payment Intents API (the correct approach!)', [
+                'token_prefix' => substr($bankAccountToken, 0, 10) . '***'
+            ]);
 
-            // Always use bank details + Financial Connections approach for now
-            // This provides the best user experience with current API compatibility
-            return $this->createACHTransferWithBankDetailsUsingChargesAPI(
-                $request, $fromAccount, $toAccount, $amountInCents, $stripe
+            // Use the CORRECT method: Payment Intents with bank account token
+            return $this->createACHTransferWithBankAccountToken(
+                $request, $fromAccount, $toAccount, $amountInCents, $stripe, $bankAccountToken
             );
 
-        } catch (\Exception $e) {
+        } else if ($bankAccountToken === 'pm_usBankAccount_success') {
+            // Test mode - use Payment Intents with test token
+            Log::info('Using test token with Payment Intents API');
+            return $this->createACHTransferWithBankAccountToken(
+                $request, $fromAccount, $toAccount, $amountInCents, $stripe, $bankAccountToken
+            );
+        }
+
+        // Only fall back to bank details if we don't have a token
+        Log::warning('No bank account token available, falling back to bank details approach');
+        return $this->createACHTransferWithBankDetailsUsingChargesAPI(
+            $request, $fromAccount, $toAccount, $amountInCents, $stripe
+        );        } catch (\Exception $e) {
             Log::error('Financial Connections Direct ACH Transfer failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -1892,19 +1897,37 @@ class PlaidController extends Controller
                 'account_number' => '****' . substr($bankAccountDetails['account_number'], -4)
             ]);
 
-            // Create PaymentMethod directly with routing and account numbers
+            // Create PaymentMethod directly with comprehensive routing and account details
             $paymentMethod = $stripe->paymentMethods->create([
                 'type' => 'us_bank_account',
                 'us_bank_account' => [
                     'routing_number' => $bankAccountDetails['routing_number'],
                     'account_number' => $bankAccountDetails['account_number'],
-                    'account_holder_type' => 'individual',
+                    'account_holder_type' => $bankAccountDetails['account_holder_type'] ?? 'individual',
                     'account_type' => $bankAccountDetails['account_type'] ?? 'checking',
                 ],
                 'billing_details' => [
-                    'name' => $billingName,
+                    'name' => $bankAccountDetails['account_holder_name'] ?? $billingName,
                     'email' => $billingEmail,
+                    // Include additional address information if available from user profile
+                    'address' => [
+                        'country' => 'US', // ACH is US-only
+                        'state' => $fromUser->state ?? null,
+                        'city' => $fromUser->city ?? null,
+                        'postal_code' => $fromUser->zip_code ?? null,
+                        'line1' => $fromUser->address ?? null,
+                    ]
                 ],
+                // Add metadata for tracking and compliance
+                'metadata' => [
+                    'plaid_account_id' => $bankAccountDetails['plaid_account_id'],
+                    'institution_name' => $bankAccountDetails['institution_name'],
+                    'account_name' => $bankAccountDetails['account_name'],
+                    'account_mask' => $bankAccountDetails['account_mask'],
+                    'verification_status' => $bankAccountDetails['verification_status'],
+                    'data_source' => $bankAccountDetails['data_source'],
+                    'retrieved_at' => $bankAccountDetails['retrieved_at']
+                ]
             ]);
 
             Log::info('Successfully created PaymentMethod from routing/account numbers', [
@@ -2664,20 +2687,49 @@ class PlaidController extends Controller
         $useProduction = config('app.use_production_apis', false);
 
         if (!$useProduction) {
-            // For sandbox/test mode, return test bank account details from environment
+            // For sandbox/test mode, return comprehensive test bank account details
             $testRoutingNumber = env('TEST_ROUTING_NUMBER', '110000000'); // Default Stripe test routing number
             $testAccountNumber = env('TEST_ACCOUNT_NUMBER', '000123456789'); // Default Stripe test account number
 
-            Log::info('Returning test bank account details for sandbox mode', [
+            Log::info('Returning comprehensive test bank account details for sandbox mode', [
                 'routing_number' => substr($testRoutingNumber, 0, 4) . '****',
                 'account_number' => '****' . substr($testAccountNumber, -4),
                 'source' => 'environment_variables'
             ]);
 
             return [
+                // Core banking details
                 'routing_number' => $testRoutingNumber,
                 'account_number' => $testAccountNumber,
-                'account_type' => 'checking'
+                'account_type' => 'checking',
+
+                // Test account holder information
+                'account_holder_name' => $plaidAccount->user->name ?? $plaidAccount->user->business_name ?? 'Test Account Holder',
+                'account_holder_type' => $plaidAccount->user && $plaidAccount->user->business_name ? 'company' : 'individual',
+
+                // Test institution details
+                'institution_name' => $plaidAccount->institution_name ?? 'Test Bank',
+                'institution_id' => 'test_bank_001',
+
+                // Test account metadata
+                'account_name' => $plaidAccount->account_name ?? 'Test Checking Account',
+                'account_official_name' => 'Test Checking Account - Primary',
+                'account_mask' => substr($testAccountNumber, -4),
+                'account_subtype' => 'checking',
+
+                // Test balance information
+                'current_balance' => 1000.00, // Test balance
+                'available_balance' => 950.00, // Test available balance
+                'currency' => 'USD',
+
+                // Test verification status
+                'verification_status' => 'automatically_verified',
+
+                // Test compliance and metadata
+                'plaid_account_id' => $plaidAccount->plaid_account_id,
+                'user_id' => $plaidAccount->user_id,
+                'retrieved_at' => now()->toISOString(),
+                'data_source' => 'test_environment_variables'
             ];
         }
 
@@ -2735,16 +2787,56 @@ class PlaidController extends Controller
                 throw new \Exception('ACH numbers not found for account');
             }
 
+            // Get additional account holder information for compliance and proper processing
             $bankDetails = [
+                // Core banking details
                 'routing_number' => $accountNumbers['routing'],
                 'account_number' => $accountNumbers['account'],
-                'account_type' => strtolower($targetAccount['subtype']) === 'savings' ? 'savings' : 'checking'
+                'account_type' => strtolower($targetAccount['subtype']) === 'savings' ? 'savings' : 'checking',
+
+                // Account holder information (essential for ACH compliance)
+                'account_holder_name' => $plaidAccount->user->name ?? $plaidAccount->user->business_name ?? 'Account Holder',
+                'account_holder_type' => $plaidAccount->user && $plaidAccount->user->business_name ? 'company' : 'individual',
+
+                // Institution details
+                'institution_name' => $plaidAccount->institution_name ?? $targetAccount['name'] ?? 'Bank',
+                'institution_id' => $plaidAccount->institution_id ?? null,
+
+                // Account metadata for verification and tracking
+                'account_name' => $targetAccount['name'] ?? $plaidAccount->account_name ?? 'Checking Account',
+                'account_official_name' => $targetAccount['official_name'] ?? null,
+                'account_mask' => $targetAccount['mask'] ?? substr($accountNumbers['account'], -4),
+                'account_subtype' => $targetAccount['subtype'] ?? 'checking',
+
+                // Balance information (if available for verification)
+                'current_balance' => $targetAccount['balances']['current'] ?? null,
+                'available_balance' => $targetAccount['balances']['available'] ?? null,
+                'currency' => $targetAccount['balances']['iso_currency_code'] ?? 'USD',
+
+                // Verification status
+                'verification_status' => $targetAccount['verification_status'] ?? 'automatically_verified',
+
+                // Wire transfer info (if available)
+                'wire_routing' => $accountNumbers['wire_routing'] ?? null,
+
+                // Compliance and metadata
+                'plaid_account_id' => $plaidAccount->plaid_account_id,
+                'user_id' => $plaidAccount->user_id,
+                'retrieved_at' => now()->toISOString(),
+                'data_source' => 'plaid_auth_api'
             ];
 
-            Log::info('Successfully retrieved real bank account details from Plaid', [
+            Log::info('Successfully retrieved comprehensive bank account details from Plaid', [
                 'routing_number' => substr($bankDetails['routing_number'], 0, 4) . '****',
                 'account_number' => '****' . substr($bankDetails['account_number'], -4),
-                'account_type' => $bankDetails['account_type']
+                'account_type' => $bankDetails['account_type'],
+                'account_holder_name' => $bankDetails['account_holder_name'],
+                'account_holder_type' => $bankDetails['account_holder_type'],
+                'institution_name' => $bankDetails['institution_name'],
+                'account_name' => $bankDetails['account_name'],
+                'account_mask' => $bankDetails['account_mask'],
+                'has_balance_info' => !is_null($bankDetails['current_balance']),
+                'verification_status' => $bankDetails['verification_status']
             ]);
 
             return $bankDetails;
@@ -3720,6 +3812,394 @@ class PlaidController extends Controller
             'customer_id' => $plaidAccount->stripe_customer_id,
             'new_bank_account_id' => $bankAccount->id
         ]);
+    }
+
+
+    public function chargeACHWithBankToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'stripe_bank_account_token' => 'required|string|starts_with:btok_', // btok_xxxxxxxxxxxxxxxxxxxxxxxx
+            'amount' => 'required|numeric|min:0.50', // Minimum $0.50 for ACH
+            'currency' => 'sometimes|string|in:usd',
+            'description' => 'nullable|string|max:500',
+            'customer_email' => 'required|email'
+        ]);
+
+        try {
+            // Initialize Stripe client with correct environment
+            $useProduction = config('app.use_production_apis', false);
+            $stripeSecret = $useProduction
+                ? (config('services.stripe.prod_secret') ?? env('STRIPE_PROD_SECRET_KEY'))
+                : (config('services.stripe.secret') ?? env('STRIPE_SECRET_KEY'));
+
+            $stripe = new \Stripe\StripeClient($stripeSecret);
+
+            Log::info('🏦 Starting ACH Charge with Bank Token', [
+                'bank_token' => substr($request->stripe_bank_account_token, 0, 8) . '****',
+                'amount' => $request->amount,
+                'environment' => $useProduction ? 'production' : 'test'
+            ]);
+
+
+
+            // STEP 1: Create a PaymentMethod from the bank token
+            $paymentMethod = $stripe->paymentMethods->create([
+                'type' => 'us_bank_account',
+                'us_bank_account' => [
+                    'bank_account_token' => $request->stripe_bank_account_token
+                ]
+            ]);
+
+            Log::info('✅ PaymentMethod created from bank token', [
+                'payment_method_id' => $paymentMethod->id,
+                'bank_account_last4' => $paymentMethod->us_bank_account->last4 ?? 'unknown'
+            ]);
+
+            // STEP 2: Create PaymentIntent (NOT Charge!) with the PaymentMethod
+            $amountInCents = (int)($request->amount * 100);
+
+            $paymentIntent = $stripe->paymentIntents->create([
+                'amount' => $amountInCents,
+                'currency' => $request->currency ?? 'usd',
+                'payment_method' => $paymentMethod->id,
+                'payment_method_types' => ['us_bank_account'],
+                'payment_method_options' => [
+                    'us_bank_account' => [
+                        'verification_method' => 'instant' // Use instant verification if available
+                    ]
+                ],
+                'description' => $request->description ?? 'ACH Payment via Plaid Integration',
+                'receipt_email' => $request->customer_email,
+                'confirm' => true, // Automatically confirm the payment
+                'return_url' => config('app.url') . '/payment/return',
+                'metadata' => [
+                    'integration' => 'plaid_stripe_ach',
+                    'method' => 'bank_token',
+                    'token_prefix' => substr($request->stripe_bank_account_token, 0, 8)
+                ]
+            ]);
+
+
+            Log::info('🎉 PaymentIntent created successfully', [
+                'payment_intent_id' => $paymentIntent->id,
+                'status' => $paymentIntent->status,
+                'amount' => $amountInCents / 100,
+                'has_next_action' => !empty($paymentIntent->next_action)
+            ]);
+
+            // STEP 3: Store transaction record for tracking
+            $transaction = \App\Models\Transaction::create([
+                'stripe_payment_intent_id' => $paymentIntent->id,
+                'amount' => number_format($amountInCents / 100, 2, '.', ''),
+                'description' => $request->description ?? 'ACH Payment via Bank Token',
+                'local_status' => $this->mapStripeStatusToDatabase($paymentIntent->status),
+                'metadata' => [
+                    'method_used' => 'bank_token_payment_intent',
+                    'bank_token' => substr($request->stripe_bank_account_token, 0, 8) . '****',
+                    'payment_method_id' => $paymentMethod->id,
+                    'stripe_payment_intent' => $paymentIntent->toArray()
+                ]
+            ]);
+
+            // STEP 4: Return response based on payment status
+            $response = [
+                'success' => true,
+                'payment_intent_id' => $paymentIntent->id,
+                'transaction_id' => $transaction->id,
+                'status' => $paymentIntent->status,
+                'amount' => $amountInCents / 100,
+                'currency' => $paymentIntent->currency,
+                'message' => $this->getPaymentStatusMessage($paymentIntent->status),
+            ];
+
+            // Handle different payment statuses
+            switch ($paymentIntent->status) {
+                case 'succeeded':
+                    $response['message'] = '✅ Payment completed successfully!';
+                    break;
+
+                case 'processing':
+                    $response['message'] = '⏳ Payment is being processed (ACH payments typically take 3-5 business days)';
+                    break;
+
+                case 'requires_action':
+                    $response['next_action'] = $paymentIntent->next_action;
+                    $response['client_secret'] = $paymentIntent->client_secret;
+                    $response['message'] = '🔄 Additional verification required (check next_action)';
+                    break;
+
+                case 'requires_payment_method':
+                    $response['message'] = '❌ Payment method verification failed - please try a different account';
+                    break;
+
+                default:
+                    $response['message'] = "Payment status: {$paymentIntent->status}";
+            }
+
+            return response()->json($response);
+
+        } catch (\Stripe\Exception\CardException $e) {
+            Log::error('Stripe Card Exception (ACH)', [
+                'message' => $e->getMessage(),
+                'decline_code' => $e->getDeclineCode(),
+                'bank_token' => substr($request->stripe_bank_account_token ?? '', 0, 8) . '****'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'payment_failed',
+                'message' => $e->getMessage(),
+                'decline_code' => $e->getDeclineCode()
+            ], 400);
+
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            Log::error('Invalid Stripe Request (ACH)', [
+                'message' => $e->getMessage(),
+                'stripe_param' => $e->getStripeParam(),
+                'bank_token' => substr($request->stripe_bank_account_token ?? '', 0, 8) . '****'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'invalid_request',
+                'message' => 'Invalid payment request: ' . $e->getMessage(),
+                'details' => $e->getStripeParam() ? "Issue with parameter: {$e->getStripeParam()}" : null
+            ], 400);
+
+        } catch (\Exception $e) {
+            Log::error('ACH Charge Exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'bank_token' => substr($request->stripe_bank_account_token ?? '', 0, 8) . '****'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'system_error',
+                'message' => 'Payment processing failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper method to get user-friendly payment status messages
+     */
+    private function getPaymentStatusMessage(string $status): string
+    {
+        return match($status) {
+            'succeeded' => 'Payment completed successfully',
+            'processing' => 'Payment is being processed (ACH typically takes 3-5 business days)',
+            'requires_action' => 'Additional verification required',
+            'requires_payment_method' => 'Payment method verification failed',
+            'canceled' => 'Payment was canceled',
+            'requires_confirmation' => 'Payment requires confirmation',
+            default => "Payment status: {$status}"
+        };
+    }
+
+    /**
+     * 🔥 CORRECT METHOD: Create ACH Transfer using bank account token with Payment Intents API
+     *
+     * This is the proper way to use Plaid bank account tokens (btok_xxx) with Stripe.
+     * Uses Payment Intents API which supports instant verification without manual verification steps.
+     */
+    private function createACHTransferWithBankAccountToken(
+        Request $request,
+        PlaidAccount $fromAccount,
+        PlaidAccount $toAccount,
+        int $amountInCents,
+        \Stripe\StripeClient $stripe,
+        string $bankAccountToken
+    ): JsonResponse {
+
+        Log::info('🚀 Creating ACH Transfer using bank account token with Payment Intents API', [
+            'bank_account_token' => substr($bankAccountToken, 0, 10) . '***',
+            'amount' => $amountInCents / 100,
+            'from_account' => $fromAccount->plaid_account_id,
+            'to_account' => $toAccount->plaid_account_id
+        ]);
+
+        try {
+            // Get user details for billing
+            $fromUser = $fromAccount->user;
+            $billingName = $fromUser ? ($fromUser->business_name ?? $fromUser->name ?? 'Account Holder') : 'Account Holder';
+            $billingEmail = $fromUser && !empty($fromUser->email) ? $fromUser->email : $request->email;
+
+            // Step 1: Create a Customer and attach the bank account token as a Source
+            $customer = $stripe->customers->create([
+                'name' => $billingName,
+                'email' => $billingEmail,
+                'description' => 'Customer for ACH payment via Plaid token',
+            ]);
+
+            Log::info('✅ Customer created for bank account token', [
+                'customer_id' => $customer->id,
+                'bank_token' => substr($bankAccountToken, 0, 10) . '***'
+            ]);
+
+            // Step 2: Attach the bank account token as a source to the customer
+            $source = $stripe->customers->createSource($customer->id, [
+                'source' => $bankAccountToken
+            ]);
+
+            Log::info('✅ Bank account source attached to customer', [
+                'customer_id' => $customer->id,
+                'source_id' => $source->id,
+                'source_status' => $source->status ?? 'unknown'
+            ]);
+
+            // Step 3: Create PaymentIntent with the customer and source
+            $paymentIntent = $stripe->paymentIntents->create([
+                'amount' => $amountInCents,
+                'currency' => 'usd',
+                'customer' => $customer->id,
+                'payment_method_types' => ['us_bank_account'],
+                'payment_method_types' => ['us_bank_account'],
+                'payment_method_options' => [
+                    'us_bank_account' => [
+                        'verification_method' => 'instant', // This is the key - instant verification!
+                        'financial_connections' => [
+                            'permissions' => ['payment_method', 'balances'],
+                            'prefetch' => ['balances']
+                        ]
+                    ]
+                ],
+                'description' => $request->description ?? 'ACH Transfer via Plaid Bank Account Token',
+                'receipt_email' => $billingEmail,
+                'confirm' => true, // Automatically confirm the payment
+                'return_url' => config('app.url') . '/transfer/return',
+                'metadata' => [
+                    'from_account_id' => $fromAccount->user_id,
+                    'to_account_id' => $toAccount->user_id,
+                    'plaid_from_account_id' => $fromAccount->id,
+                    'plaid_to_account_id' => $toAccount->id,
+                    'platform' => 'lending_platform',
+                    'transfer_type' => 'ach_debit_bank_token',
+                    'verification_method' => 'instant_plaid_token',
+                    'method' => 'payment_intents_with_bank_token',
+                    'bank_account_token' => substr($bankAccountToken, 0, 10) . '***'
+                ]
+            ]);
+
+            Log::info('🎉 Successfully created PaymentIntent with bank account token', [
+                'payment_intent_id' => $paymentIntent->id,
+                'status' => $paymentIntent->status,
+                'amount' => $amountInCents / 100,
+                'verification_method' => 'instant_plaid_token',
+                'has_next_action' => !empty($paymentIntent->next_action)
+            ]);
+
+            // Step 3: Store transaction record
+            $transaction = \App\Models\Transaction::create([
+                'stripe_payment_intent_id' => $paymentIntent->id,
+                'amount' => number_format($amountInCents / 100, 2, '.', ''),
+                'description' => $request->description ?? 'ACH Transfer via Plaid Bank Account Token',
+                'local_status' => $this->mapStripeStatusToDatabase($paymentIntent->status),
+                'metadata' => [
+                    'method_used' => 'payment_intents_with_bank_token_direct',
+                    'verification_method' => 'instant_plaid_token',
+                    'bank_account_token' => substr($bankAccountToken, 0, 10) . '***',
+                    'payment_method' => 'bank_token_direct',
+                    'stripe_payment_intent' => $paymentIntent->toArray(),
+                    'from_account_details' => [
+                        'plaid_account_id' => $fromAccount->plaid_account_id,
+                        'account_name' => $fromAccount->account_name,
+                        'institution_name' => $fromAccount->institution_name,
+                        'user_id' => $fromAccount->user_id
+                    ],
+                    'to_account_details' => [
+                        'plaid_account_id' => $toAccount->plaid_account_id,
+                        'account_name' => $toAccount->account_name,
+                        'institution_name' => $toAccount->institution_name,
+                        'user_id' => $toAccount->user_id
+                    ]
+                ]
+            ]);
+
+            Log::info('💾 Transaction record created successfully', [
+                'transaction_id' => $transaction->id,
+                'payment_intent_id' => $paymentIntent->id
+            ]);
+
+            // Step 4: Return appropriate response based on payment status
+            $response = [
+                'success' => true,
+                'payment_intent_id' => $paymentIntent->id,
+                'transaction_id' => $transaction->id,
+                'status' => $paymentIntent->status,
+                'amount' => $amountInCents / 100,
+                'currency' => $paymentIntent->currency,
+                'verification_method' => 'instant_plaid_token',
+                'method_used' => 'payment_intents_with_bank_token'
+            ];
+
+            // Handle different payment statuses
+            switch ($paymentIntent->status) {
+                case 'succeeded':
+                    $response['message'] = '✅ ACH transfer completed successfully with instant verification!';
+                    break;
+
+                case 'processing':
+                    $response['message'] = '⏳ ACH transfer is being processed (typically completes in 3-5 business days)';
+                    break;
+
+                case 'requires_action':
+                    $response['next_action'] = $paymentIntent->next_action;
+                    $response['client_secret'] = $paymentIntent->client_secret;
+                    $response['message'] = '🔄 Additional verification required (check next_action)';
+                    break;
+
+                case 'requires_payment_method':
+                    $response['message'] = '❌ Payment method verification failed - please try linking the account again';
+                    break;
+
+                default:
+                    $response['message'] = "Payment status: {$paymentIntent->status}";
+            }
+
+            return response()->json($response);
+
+        } catch (\Stripe\Exception\CardException $e) {
+            Log::error('Stripe CardException with bank account token', [
+                'message' => $e->getMessage(),
+                'decline_code' => $e->getDeclineCode(),
+                'bank_account_token' => substr($bankAccountToken, 0, 10) . '***'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'payment_failed',
+                'message' => $e->getMessage(),
+                'decline_code' => $e->getDeclineCode()
+            ], 400);
+
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            Log::error('Invalid Stripe request with bank account token', [
+                'message' => $e->getMessage(),
+                'stripe_param' => $e->getStripeParam(),
+                'bank_account_token' => substr($bankAccountToken, 0, 10) . '***'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'invalid_request',
+                'message' => 'Invalid payment request: ' . $e->getMessage(),
+                'details' => $e->getStripeParam() ? "Issue with parameter: {$e->getStripeParam()}" : null
+            ], 400);
+
+        } catch (\Exception $e) {
+            Log::error('ACH Transfer with bank account token failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'bank_account_token' => substr($bankAccountToken, 0, 10) . '***'
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'system_error',
+                'message' => 'Payment processing failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
 

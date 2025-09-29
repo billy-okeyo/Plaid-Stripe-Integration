@@ -40,3 +40,6 @@ Route::get('/debug/api-config', [PlaidController::class, 'showApiConfiguration']
 Route::post('/stripe/check-payment-intent', [StripeStatusController::class, 'checkPaymentIntent']);
 Route::get('/stripe/list-transactions', [StripeStatusController::class, 'listTransactions']);
 Route::post('/stripe/sync-transaction-status', [StripeStatusController::class, 'syncTransactionStatus']);
+
+// ACH Payment with Bank Token Route (SOLUTION TO YOUR QUESTION!)
+Route::post('/plaid/charge-ach-with-token', [PlaidController::class, 'chargeACHWithBankToken'])->name('api.plaid.charge-ach-token');
