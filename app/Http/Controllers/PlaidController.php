@@ -26,7 +26,7 @@ class PlaidController extends Controller
 
         if ($useProduction) {
             // Production configuration
-            $this->clientId = config('services.plaid.prod_client_id') ?? env('PLAID_PROD_CLIENT_ID');
+            $this->clientId = config('services.plaid.prod_client_id') ?? env('PLAID_CLIENT_ID');
             $this->secret = config('services.plaid.prod_secret') ?? env('PLAID_PROD_SECRET');
             $this->baseUrl = config('services.plaid.prod_base_url') ?? env('PLAID_PROD_URL', 'https://production.plaid.com');
             $this->environment = config('services.plaid.prod_environment') ?? env('PLAID_PROD_ENV', 'production');
