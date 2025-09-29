@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\StripePaymentController;
+use App\Http\Controllers\StripeStatusController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,3 +32,11 @@ Route::get('/stripe/transactions', [StripePaymentController::class, 'getTransact
 
 Route::post('/stripe/create-payment-intent', [StripePaymentController::class, 'createPaymentIntent'])->name('api.stripe.create-payment-intent');
 Route::post('/plaid/create-ach-transfer', [PlaidController::class, 'createACHTransfer'])->name('api.plaid.create-ach-transfer');
+
+// Debug routes
+Route::get('/debug/api-config', [PlaidController::class, 'showApiConfiguration'])->name('api.debug.config');
+
+// Stripe Status Check Routes
+Route::post('/stripe/check-payment-intent', [StripeStatusController::class, 'checkPaymentIntent']);
+Route::get('/stripe/list-transactions', [StripeStatusController::class, 'listTransactions']);
+Route::post('/stripe/sync-transaction-status', [StripeStatusController::class, 'syncTransactionStatus']);

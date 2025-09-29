@@ -1674,7 +1674,7 @@
                                                 <p><strong>Current Balance:</strong> ${account.formatted_current_balance || 'N/A'}</p>
                                             </div>`
                                         }
-                                        ${account.has_stripe_token ?
+                                        ${account.stripe_integration_status === 'active' ?
                                             '<div style="background: #d4edda; padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #28a745;"><p style="margin: 0; font-size: 0.9rem; color: #155724;">✅ <strong>Ready for ACH Transfers:</strong> This account has a valid Stripe bank account token and can be used for money transfers.</p></div>' :
                                             '<div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #ffc107;"><p style="margin: 0; font-size: 0.9rem; color: #856404;">⚠️ <strong>Stripe Token Needed:</strong> This account needs a Stripe bank account token to process transfers. Try reconnecting the account.</p></div>'
                                         }
