@@ -24,19 +24,27 @@ class PlaidAccount extends Model
         'current_balance',
         'currency_code',
         'metadata',
-        'is_active',
-        'stripe_bank_account_token',
-        'stripe_token_created_at',
-        'stripe_integration_status',
         'connection_status',
+        'last_sync_at',
+        'is_active',
+        'stripe_bank_account_token', // Deprecated - use stripe_customer_id + stripe_bank_account_id instead
+        'stripe_customer_id',
+        'stripe_bank_account_id',
+        'stripe_bank_account_details',
+        'stripe_bank_account_created_at',
+        'stripe_token_created_at',
+        'stripe_integration_status'
     ];
 
     protected $casts = [
         'metadata' => 'array',
-        'available_balance' => 'decimal:2',
-        'current_balance' => 'decimal:2',
-        'is_active' => 'boolean',
+        'stripe_bank_account_details' => 'array',
+        'last_sync_at' => 'datetime',
         'stripe_token_created_at' => 'datetime',
+        'stripe_bank_account_created_at' => 'datetime',
+        'is_active' => 'boolean',
+        'available_balance' => 'decimal:2',
+        'current_balance' => 'decimal:2'
     ];
 
     /**
@@ -88,7 +96,44 @@ class PlaidAccount extends Model
     }
 
     /**
-     * Check if account has a valid Stripe bank account token
+     * Check if account has persistent Stripe customer and bank account
+     * This is the recommended approach for long-term storage
+     */
+    public function hasStripeCustomerAccount(): bool
+    {
+        return !empty($this->stripe_customer_id) &&
+               !empty($this->stripe_bank_account_id) &&
+               $this->stripe_integration_status === 'active';
+    }
+
+    /**
+     * Check if account can generate Stripe bank account tokens
+     * Note: Stripe tokens (btok_*) are short-lived and should be generated fresh each time
+     */
+    public function canGenerateStripeTokens(): bool
+    {
+        return !empty($this->access_token) &&
+               !empty($this->plaid_account_id);
+    }
+
+    /**
+     * Get the preferred Stripe payment method (customer + bank account vs fresh token)
+     * Returns 'customer_account' if persistent objects exist, 'fresh_token' otherwise
+     */
+    public function getStripePaymentMethod(): string
+    {
+        if ($this->hasStripeCustomerAccount()) {
+            return 'customer_account'; // Use existing customer + bank account
+        } elseif ($this->canGenerateStripeTokens()) {
+            return 'fresh_token'; // Generate fresh token and create customer + bank account
+        } else {
+            return 'unavailable';
+        }
+    }
+
+    /**
+     * Check if stored Stripe token exists (but may be expired)
+     * @deprecated Use hasStripeCustomerAccount() instead - stored tokens expire quickly
      */
     public function hasValidStripeToken(): bool
     {

@@ -30,10 +30,27 @@ Route::post('/plaid/user-accounts', [PlaidController::class, 'getUserAccounts'])
 Route::post('/plaid/balances', [PlaidController::class, 'getBalances'])->name('plaid.balances');
 Route::post('/plaid/create-ach-transfer', [PlaidController::class, 'createACHTransfer'])->name('plaid.create-ach-transfer');
 Route::get('/plaid/check-verification-status/{paymentIntentId}', [PlaidController::class, 'checkVerificationStatus'])->name('plaid.check-verification-status');
+Route::post('/plaid/check-verification-options', [PlaidController::class, 'checkVerificationOptions'])->name('plaid.check-verification-options');
 Route::post('/plaid/webhook', [PlaidController::class, 'webhook'])->name('plaid.webhook');
 Route::get('/plaid/stored-accounts', [PlaidController::class, 'getStoredAccounts'])->name('plaid.stored-accounts');
 Route::delete('/plaid/accounts/{accountId}', [PlaidController::class, 'disconnectAccount'])->name('plaid.disconnect-account');
 Route::get('/plaid/configuration-status', [PlaidController::class, 'getConfigurationStatus'])->name('plaid.configuration-status');
+Route::post('/plaid/create-checkout-with-financial-connections', [PlaidController::class, 'createCheckoutSessionWithFinancialConnections'])->name('plaid.create-checkout-fc');
+Route::post('/plaid/create-payment-method-with-financial-connections', [PlaidController::class, 'createPaymentMethodWithFinancialConnections'])->name('plaid.create-payment-method-fc');
+Route::get('/financial-connections/return', [PlaidController::class, 'handleFinancialConnectionsReturn'])->name('financial-connections.return');
+// Add manual payment intent confirmation route
+Route::post('/plaid/confirm-payment-intent', [PlaidController::class, 'confirmPaymentIntent']);
+
+// Bank verification endpoints
+Route::post('/plaid/complete-bank-verification', [PlaidController::class, 'completeBankVerification']);
+Route::get('/bank-verification', [PlaidController::class, 'showBankVerificationPage']);
+
+// Token validation endpoint
+Route::post('/plaid/validate-integration', [PlaidController::class, 'validatePlaidStripeIntegration']);
+// Token validation page
+Route::get('/validate-tokens', function () {
+    return view('token-validation');
+});
 
 // Stripe Payment Routes (Regular Stripe + Plaid ACH)
 Route::post('/stripe/create-payment-intent', [StripePaymentController::class, 'createPaymentIntent'])->name('stripe.create-payment-intent');

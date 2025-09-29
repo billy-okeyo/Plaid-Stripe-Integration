@@ -642,13 +642,69 @@
                                     </small>
                                 </div>
                             </div>
+
+                            <!-- Financial Connections Section -->
+                            <div class="form-group" style="background: #f0f9ff; padding: 15px; border-radius: 8px; border: 1px solid #bfdbfe; margin-top: 15px;">
+                                <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                                    <label style="font-weight: bold; color: #1d4ed8; margin-bottom: 0; display: block;">🔗 Financial Connections (Instant Verification)</label>
+                                    <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 10px; margin-left: 10px; font-weight: 600;">RECOMMENDED</span>
+                                </div>
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="radio" name="integration_method" value="financial_connections" checked style="margin-right: 8px;">
+                                        <span style="font-weight: 600;">Use Stripe Financial Connections</span>
+                                    </label>
+                                    <small style="color: #374151; font-size: 12px; display: block; margin-left: 20px; margin-top: 3px;">
+                                        Customer logs into their bank for instant verification. Fastest and most secure method.
+                                    </small>
+                                </div>
+                                <div>
+                                    <label style="display: flex; align-items: center; cursor: pointer;">
+                                        <input type="radio" name="integration_method" value="plaid_processor" style="margin-right: 8px;">
+                                        <span style="font-weight: 600;">Use Plaid Processor (Legacy)</span>
+                                    </label>
+                                    <small style="color: #6b7280; font-size: 12px; display: block; margin-left: 20px; margin-top: 3px;">
+                                        Uses existing Plaid integration. May require microdeposit fallback in production.
+                                    </small>
+                                </div>
+                                <div style="background: white; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 3px solid #10b981;">
+                                    <div style="font-size: 12px; color: #059669;">
+                                        <strong>💡 Why Financial Connections?</strong><br>
+                                        • Instant verification via bank login (no waiting for microdeposits)<br>
+                                        • Works reliably in production environments<br>
+                                        • Better user experience and higher success rates<br>
+                                        • Uses basic payment permissions - no special activation required<br>
+                                        • Automatically handles bank authentication and verification
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label for="description">Description</label>
                                 <input type="text" id="description" name="description" placeholder="Optional transfer description">
                             </div>
-                            <button type="submit" class="btn">Initiate ACH Transfer</button>
+
+                            <!-- Dynamic Button Based on Selection -->
+                            <button type="submit" class="btn" id="submitBtn">Initiate ACH Transfer</button>
+                            <button type="button" class="btn" id="checkoutBtn" style="background: #1d4ed8; display: none;">Create Stripe Checkout</button>
                         </form>
                         <div id="transferStatus" style="margin-top: 20px;"></div>
+
+                        <!-- Verification Guidance Section -->
+                        <div id="verificationGuidance" class="verification-guidance" style="margin-top: 30px; padding: 20px; background: #fef9e7; border-radius: 8px; border-left: 4px solid #f59e0b; display: none;">
+                            <h3 style="color: #d97706; margin-bottom: 15px;">⚠️ Verification Method Not Available</h3>
+                            <div id="verificationMessage">
+                                <!-- Dynamic content will be inserted here -->
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <button onclick="checkVerificationOptions()" class="btn btn-secondary" style="margin-right: 10px;">
+                                    Check Account Options
+                                </button>
+                                <button onclick="hideVerificationGuidance()" class="btn btn-outline" style="background: transparent; border: 1px solid #d97706; color: #d97706;">
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1147,21 +1203,80 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Handle next action if required
-                    const nextActionHtml = getNextActionHtml(result);
+                    // Check if this is a Financial Connections response that needs customer action
+                    if (result.financial_connections_flow || result.transfer.verification_method === 'instant_financial_connections') {
+                        statusDiv.innerHTML = `
+                            <div style="color: #1d4ed8;">
+                                <h4>🔗 Financial Connections Setup Complete!</h4>
+                                <p><strong>Payment Intent ID:</strong> ${result.transfer.payment_intent_id}</p>
+                                <p><strong>Amount:</strong> $${parseFloat(data.amount).toLocaleString()}</p>
+                                <p><strong>Status:</strong> ${result.transfer.status}</p>
+                                <p><strong>Method:</strong> Financial Connections (Instant Verification)</p>
 
-                    statusDiv.innerHTML = `
-                        <div style="color: green;">
-                            <h4>✅ Real ACH Transfer Initiated!</h4>
-                            <p><strong>Payment Intent ID:</strong> ${result.transfer.id}</p>
-                            <p><strong>Amount:</strong> $${parseFloat(data.amount).toLocaleString()}</p>
-                            <p><strong>Status:</strong> ${result.transfer.status}</p>
-                            <p><strong>Network:</strong> ACH via Plaid + Stripe</p>
-                            <p><strong>Estimated Completion:</strong> ${result.estimated_completion}</p>
-                            <p><em>Real money movement initiated via secure bank account token. Updates will be provided via webhooks.</em></p>
-                            ${nextActionHtml}
-                        </div>
-                    `;
+                                <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #f59e0b;">
+                                    <h5 style="color: #d97706; margin-bottom: 10px;">⚠️ Customer Action Required</h5>
+                                    <p style="color: #92400e; margin-bottom: 0;">The PaymentIntent has been created, but the customer needs to authenticate with their bank to complete the payment.</p>
+                                </div>
+
+                                <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 3px solid #3b82f6;">
+                                    <h5 style="color: #1d4ed8; margin-bottom: 10px;">🚀 Next Steps</h5>
+                                    <ol style="color: #374151; line-height: 1.6; margin: 0; padding-left: 20px;">
+                                        <li><strong>Option 1 (Recommended):</strong> Use Stripe Checkout for easiest implementation</li>
+                                        <li><strong>Option 2:</strong> Implement Stripe Elements on your frontend</li>
+                                        <li>Customer authenticates with their bank via Financial Connections</li>
+                                        <li>Payment processes instantly after successful bank verification</li>
+                                    </ol>
+                                </div>
+
+                                <div style="margin: 20px 0;">
+                                    <h5 style="color: #374151; margin-bottom: 10px;">💻 Implementation Options:</h5>
+
+                                    <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #e5e7eb;">
+                                        <h6 style="color: #10b981; margin-bottom: 8px;">✅ Option 1: Stripe Checkout (Easiest)</h6>
+                                        <p style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">Let Stripe handle the entire UI and Financial Connections flow.</p>
+                                        <button onclick="createStripeCheckout('${result.transfer.customer_id}', '${data.amount}', '${data.email}', '${data.description || 'ACH Transfer'}')" class="btn" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 14px;">
+                                            🔗 Create Stripe Checkout
+                                        </button>
+                                    </div>
+
+                                    <div style="background: white; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #e5e7eb;">
+                                        <h6 style="color: #3b82f6; margin-bottom: 8px;">🔧 Option 2: Stripe Elements (Advanced)</h6>
+                                        <p style="color: #6b7280; font-size: 14px; margin-bottom: 10px;">Implement custom UI using the client_secret below.</p>
+                                        <div style="background: #f8fafc; padding: 12px; border-radius: 4px; margin: 10px 0; font-family: monospace; font-size: 12px; word-break: break-all;">
+                                            <strong>Client Secret:</strong><br>
+                                            <span id="clientSecret">${result.transfer.client_secret}</span>
+                                            <button onclick="copyToClipboard('clientSecret')" style="margin-left: 10px; padding: 2px 8px; font-size: 10px; background: #6b7280; color: white; border: none; border-radius: 3px; cursor: pointer;">Copy</button>
+                                        </div>
+                                        <p style="color: #6b7280; font-size: 12px;">
+                                            📖 <a href="https://stripe.com/docs/payments/accept-a-payment?ui=elements&platform=web&payment-method=us_bank_account" target="_blank">View Stripe Elements Documentation</a>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; border-left: 3px solid #22c55e;">
+                                    <p style="color: #166534; margin: 0; font-size: 14px;">
+                                        <strong>💡 Why Financial Connections?</strong> No waiting for microdeposits! Customer logs directly into their bank for instant verification and immediate payment processing.
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Handle regular transfer completion
+                        const nextActionHtml = getNextActionHtml(result);
+
+                        statusDiv.innerHTML = `
+                            <div style="color: green;">
+                                <h4>✅ Real ACH Transfer Initiated!</h4>
+                                <p><strong>Payment Intent ID:</strong> ${result.transfer.id}</p>
+                                <p><strong>Amount:</strong> $${parseFloat(data.amount).toLocaleString()}</p>
+                                <p><strong>Status:</strong> ${result.transfer.status}</p>
+                                <p><strong>Network:</strong> ACH via Plaid + Stripe</p>
+                                <p><strong>Estimated Completion:</strong> ${result.estimated_completion}</p>
+                                <p><em>Real money movement initiated via secure bank account token. Updates will be provided via webhooks.</em></p>
+                                ${nextActionHtml}
+                            </div>
+                        `;
+                    }
 
                     // Refresh data
                     loadTransactions();
@@ -1197,13 +1312,32 @@
                             </div>
                         `;
                     } else {
-                        statusDiv.innerHTML = `
-                            <div style="color: red;">
-                                <h4>❌ Real ACH Transfer Failed</h4>
-                                <p>${errorMessage}</p>
-                                ${result.decline_code ? `<p><strong>Decline Code:</strong> ${result.decline_code}</p>` : ''}
-                            </div>
-                        `;
+                        // Check for specific error types
+                        if (errorMessage.includes('Microdeposit transfers have been blocked')) {
+                            showTransferError(errorMessage, result.message);
+                            statusDiv.innerHTML = `
+                                <div style="color: red;">
+                                    <h4>❌ Transfer Method Not Available</h4>
+                                    <p>Please check the guidance above for alternative solutions.</p>
+                                </div>
+                            `;
+                        } else {
+                            statusDiv.innerHTML = `
+                                <div style="color: red;">
+                                    <h4>❌ Real ACH Transfer Failed</h4>
+                                    <p>${errorMessage}</p>
+                                    ${result.decline_code ? `<p><strong>Decline Code:</strong> ${result.decline_code}</p>` : ''}
+                                    ${result.details ? `
+                                        <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                                            <h5>Additional Information:</h5>
+                                            ${result.details.reason ? `<p><strong>Issue:</strong> ${result.details.reason}</p>` : ''}
+                                            ${result.details.recommendation ? `<p><strong>Recommendation:</strong> ${result.details.recommendation}</p>` : ''}
+                                            ${result.details.support_url ? `<p><a href="${result.details.support_url}" target="_blank">Contact Support</a></p>` : ''}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }
                     }
                     console.error('Real ACH transfer error details:', result);
                 }
@@ -2650,6 +2784,7 @@ This will use your existing sandbox credentials:
             loadTransactions();
             loadLinkedAccounts();
             handlePaymentMethodSelection();
+            handleIntegrationMethodSelection();
 
             // Link account button handler
             document.getElementById('linkAccountButton').addEventListener('click', async () => {
@@ -2662,6 +2797,337 @@ This will use your existing sandbox credentials:
                 }
             });
         });
+
+        // Handle integration method selection (Financial Connections vs Plaid Processor)
+        function handleIntegrationMethodSelection() {
+            const radioButtons = document.querySelectorAll('input[name="integration_method"]');
+            const submitBtn = document.getElementById('submitBtn');
+            const checkoutBtn = document.getElementById('checkoutBtn');
+
+            radioButtons.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'financial_connections') {
+                        submitBtn.style.display = 'none';
+                        checkoutBtn.style.display = 'inline-block';
+                        checkoutBtn.innerHTML = '🔗 Create Financial Connections Checkout';
+                    } else {
+                        submitBtn.style.display = 'inline-block';
+                        checkoutBtn.style.display = 'none';
+                    }
+                });
+            });
+
+            // Handle Financial Connections checkout button
+            if (checkoutBtn) {
+                checkoutBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    await createFinancialConnectionsCheckout();
+                });
+            }
+        }
+
+        // Create Financial Connections Checkout Session
+        async function createFinancialConnectionsCheckout() {
+            const form = document.getElementById('transferForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            const statusDiv = document.getElementById('transferStatus');
+
+            // Validate required fields
+            if (!data.email || !data.amount) {
+                alert('Please fill in email and amount fields');
+                return;
+            }
+
+            statusDiv.innerHTML = '<p>🔄 Creating Financial Connections checkout session...</p>';
+
+            try {
+                const response = await fetch('/plaid/create-checkout-with-financial-connections', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        customer_email: data.email,
+                        amount: parseFloat(data.amount),
+                        currency: 'usd',
+                        description: data.description || 'ACH Payment via Financial Connections',
+                        success_url: window.location.origin + '/dashboard?payment=success',
+                        cancel_url: window.location.origin + '/dashboard?payment=cancelled',
+                        setup_future_usage: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div style="color: green;">
+                            <h4>✅ Financial Connections Checkout Created!</h4>
+                            <p><strong>Session ID:</strong> ${result.session.id}</p>
+                            <p><strong>Customer ID:</strong> ${result.session.customer_id}</p>
+                            <p><strong>Amount:</strong> $${parseFloat(data.amount).toLocaleString()}</p>
+                            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 3px solid #3b82f6;">
+                                <h5 style="color: #1d4ed8; margin-bottom: 10px;">🚀 Next Steps</h5>
+                                <ol style="color: #374151; line-height: 1.6; margin: 0; padding-left: 20px;">
+                                    <li>Click the button below to proceed to Stripe Checkout</li>
+                                    <li>Customer will login to their bank for instant verification</li>
+                                    <li>Payment will be processed immediately upon successful verification</li>
+                                    <li>No waiting for microdeposits!</li>
+                                </ol>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <a href="${result.session.url}" target="_blank" class="btn" style="background: #1d4ed8; color: white; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; font-weight: 600;">
+                                    🔗 Proceed to Financial Connections Checkout
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div style="color: red;">
+                            <h4>❌ Failed to Create Checkout Session</h4>
+                            <p>${result.error || result.message}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error creating Financial Connections checkout:', error);
+                statusDiv.innerHTML = `
+                    <div style="color: red;">
+                        <h4>❌ Network Error</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Verification guidance functions
+        async function checkVerificationOptions() {
+            const fromAccount = document.getElementById('fromAccount').value;
+            if (!fromAccount) {
+                showVerificationGuidance('Please select a bank account first to check verification options.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/plaid/check-verification-options', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        from_account_id: fromAccount
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    displayVerificationOptions(data);
+                } else {
+                    showVerificationGuidance(`Error checking verification options: ${data.message || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error checking verification options:', error);
+                showVerificationGuidance('Failed to check verification options. Please try again.');
+            }
+        }
+
+        function displayVerificationOptions(data) {
+            const guidance = document.getElementById('verificationGuidance');
+            const message = document.getElementById('verificationMessage');
+
+            const instantAvailable = data.verification_options.instant_verification.available;
+            const microAvailable = data.verification_options.microdeposit_verification.available;
+            const recommendation = data.recommendation;
+
+            let content = `
+                <div style="margin-bottom: 15px;">
+                    <h4 style="color: #374151; margin-bottom: 10px;">Account: ${data.account_info.account_name}</h4>
+                    <p style="color: #6b7280; margin-bottom: 15px;">Institution: ${data.account_info.institution.name}</p>
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <h4 style="color: #374151; margin-bottom: 10px;">Available Verification Methods:</h4>
+                    <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            ${instantAvailable ? '✅' : '❌'} <strong style="margin-left: 8px;">Instant Verification</strong>
+                        </div>
+                        <p style="color: #6b7280; font-size: 14px; margin-left: 24px;">
+                            ${data.verification_options.instant_verification.description}
+                        </p>
+                    </div>
+
+                    <div style="background: white; padding: 15px; border-radius: 6px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            ${microAvailable ? '✅' : '❌'} <strong style="margin-left: 8px;">Microdeposit Verification</strong>
+                        </div>
+                        <p style="color: #6b7280; font-size: 14px; margin-left: 24px;">
+                            ${data.verification_options.microdeposit_verification.description}
+                        </p>
+                        ${data.verification_options.microdeposit_verification.note ?
+                            `<p style="color: #f59e0b; font-size: 12px; margin-left: 24px; margin-top: 5px;">
+                                ⚠️ ${data.verification_options.microdeposit_verification.note}
+                            </p>` : ''
+                        }
+                    </div>
+                </div>
+
+                <div style="background: #eff6ff; padding: 15px; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                    <h4 style="color: #1d4ed8; margin-bottom: 8px;">💡 Recommendation</h4>
+                    <p style="color: #1e40af; margin: 0;">${recommendation}</p>
+                </div>
+            `;
+
+            message.innerHTML = content;
+            guidance.style.display = 'block';
+            guidance.style.background = '#f0f9ff';
+            guidance.style.borderLeftColor = '#3b82f6';
+            guidance.querySelector('h3').innerHTML = '💳 Account Verification Options';
+            guidance.querySelector('h3').style.color = '#1d4ed8';
+        }
+
+        function showVerificationGuidance(message, isError = false) {
+            const guidance = document.getElementById('verificationGuidance');
+            const messageEl = document.getElementById('verificationMessage');
+
+            messageEl.innerHTML = `<p>${message}</p>`;
+            guidance.style.display = 'block';
+
+            if (isError) {
+                guidance.style.background = '#fef2f2';
+                guidance.style.borderLeftColor = '#ef4444';
+                guidance.querySelector('h3').innerHTML = '❌ Verification Issue';
+                guidance.querySelector('h3').style.color = '#dc2626';
+            }
+        }
+
+        function showTransferError(error, details) {
+            let message = error;
+
+            if (details && details.includes('Microdeposit transfers have been blocked')) {
+                message = `
+                    <div style="margin-bottom: 15px;">
+                        <h4 style="color: #dc2626; margin-bottom: 10px;">🚫 Microdeposit Verification Disabled</h4>
+                        <p style="margin-bottom: 10px;">${error}</p>
+                    </div>
+
+                    <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                        <h4 style="color: #374151; margin-bottom: 10px;">Recommended Solutions:</h4>
+                        <ul style="color: #6b7280; padding-left: 20px; line-height: 1.6;">
+                            <li>Try linking an account from a major US bank (Chase, Bank of America, Wells Fargo, etc.)</li>
+                            <li>Use instant verification instead of microdeposit verification</li>
+                            <li>Contact Stripe support to request microdeposit access for your account</li>
+                            <li>Consider using a different financial institution that supports instant verification</li>
+                        </ul>
+                    </div>
+
+                    <div style="background: #eff6ff; padding: 15px; border-radius: 6px;">
+                        <h4 style="color: #1d4ed8; margin-bottom: 8px;">💡 Why This Happens</h4>
+                        <p style="color: #1e40af; margin: 0; line-height: 1.5;">
+                            Production Stripe accounts often have microdeposit verification disabled by default for security and compliance reasons.
+                            Most major banks support instant verification, which is faster and more secure.
+                        </p>
+                    </div>
+                `;
+
+                showVerificationGuidance(message, true);
+            } else {
+                showVerificationGuidance(message, true);
+            }
+        }
+
+        function hideVerificationGuidance() {
+            document.getElementById('verificationGuidance').style.display = 'none';
+        }
+
+        // Helper function to create Stripe Checkout for Financial Connections
+        async function createStripeCheckout(customerId, amount, email, description) {
+            try {
+                const response = await fetch('/plaid/create-checkout-with-financial-connections', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        customer_id: customerId,
+                        customer_email: email,
+                        amount: parseFloat(amount),
+                        currency: 'usd',
+                        description: description || 'ACH Payment via Financial Connections',
+                        success_url: window.location.origin + '/dashboard?payment=success',
+                        cancel_url: window.location.origin + '/dashboard?payment=cancelled',
+                        setup_future_usage: true
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Redirect to Stripe Checkout
+                    window.open(result.session.url, '_blank');
+
+                    // Update the status to show checkout created
+                    const statusDiv = document.getElementById('transferStatus');
+                    const existingContent = statusDiv.innerHTML;
+                    statusDiv.innerHTML = existingContent + `
+                        <div style="background: #10b981; color: white; padding: 12px; border-radius: 6px; margin-top: 15px;">
+                            <h5 style="margin: 0 0 8px 0;">🚀 Stripe Checkout Created!</h5>
+                            <p style="margin: 0; font-size: 14px;">A new window has opened with Stripe Checkout. Customer can now complete the Financial Connections flow.</p>
+                        </div>
+                    `;
+                } else {
+                    alert('Failed to create Stripe Checkout: ' + (result.error || result.message));
+                }
+            } catch (error) {
+                console.error('Error creating Stripe Checkout:', error);
+                alert('Network error creating Stripe Checkout: ' + error.message);
+            }
+        }
+
+        // Helper function to copy text to clipboard
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent || element.innerText;
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    // Show temporary feedback
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = 'Copied!';
+                    button.style.background = '#10b981';
+
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '#6b7280';
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const button = event.target;
+                    button.textContent = 'Copied!';
+                    setTimeout(() => button.textContent = 'Copy', 2000);
+                } catch (err) {
+                    console.error('Fallback copy failed: ', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        }
+
     </script>
 </body>
 </html>

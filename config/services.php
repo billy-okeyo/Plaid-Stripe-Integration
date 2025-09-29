@@ -63,6 +63,14 @@ return [
         // ACH Payment Method Configuration
         'ach_payment_method' => env('STRIPE_ACH_PAYMENT_METHOD', 'payment_intents'), // 'payment_intents' or 'charges'
         'instant_verification' => env('STRIPE_INSTANT_VERIFICATION', true), // Enable instant bank verification
+
+        // Financial Connections Configuration
+        'financial_connections' => [
+            'enabled' => env('STRIPE_FINANCIAL_CONNECTIONS_ENABLED', true),
+            'verification_priority' => env('STRIPE_VERIFICATION_PRIORITY', 'instant'), // 'instant' or 'microdeposit'
+            'require_financial_connections' => env('STRIPE_REQUIRE_FINANCIAL_CONNECTIONS', false), // Force FC usage
+            'fallback_to_microdeposits' => env('STRIPE_FALLBACK_TO_MICRODEPOSITS', true), // Allow fallback
+        ],
     ],
 
 ];
